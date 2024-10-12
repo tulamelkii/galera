@@ -1,0 +1,161 @@
+show install mariadb (yum --showduplicates list mariadb-server)
+
+
+
+Preapare Slave
+#show preview version mariadb
+yum --showduplicates list mariadb-server
+#install version mariadb-server-3:10.5.16
+yum install mariadb-server-3:10.5.16-2.el9
+#install rsync,tar,mariadb,mariadb-server
+yum install rsync tar galera( or galera-4)
+#copy config galera vim /etc/my.cnf.d/mariadb-server.cnf
+#delete all db to slave!!!!!!!!!
+rm -R /var/lib/mysql/* -f
+#add privilege mariadb
+chown -R mysql. /var/lib/mysql/
+chown -R mysql. /etc/my.cnf.d/
+#add folder 
+mkdir /var/log/mariadb/
+chown -R mysql. /var/log/mariadb/
+########
+Master
+#add privilege mariadb
+chown -R mysql. /var/lib/mysql/
+chown -R mysql. /etc/my.cnf.d/
+#add privileges 
+chown -R mysql. /usr/lib64/galera-4/( if galera chown -R mysql. /usr/lib64/galera/)
+###create user and add grand to privilege new nod
+mysql -u root
+#############################################
+CREATE USER 'replica'@'<nodename>' identified by 'pass*repl'; ##?
+GRANT REPLICATION SLAVE ON *.* TO 'replica'@'10.0.0.1' IDENTIFIED BY '%r';  ##?
+#############################################
+#add user and privilege
+CREATE USER 'mysql'@'%' IDENTIFIED BY '';
+GRANT ALL PRIVILEGES ON *.* TO 'mysql'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+( this need for check wrrp)
+#############################################
+#stop mariadb!!
+systemctl stop mariadb
+#create backup and mkdir /opt/bk 
+mkdir /opt/bk & ariabackup --backup --target-dir=/opt/bk --user=backup --password=1q****
+#start cluster only msql
+sudo mysqld --wsrep-new-cluster --user=mysql
+##### Process start 455... and connect..(if quicly close...show why..mayby not access, mayby port open, mayby busi port(lsof -i ... 3306 ,ss -tuln ..)
+Slave  
+#start db
+systemctl start mariadb
+......................................
+Check status slave maria db!!!
+ 
+systemctl status mariadb
+......................................
+● mariadb.service - MariaDB 10.5 database server
+     Loaded: loaded (/usr/lib/systemd/system/mariadb.service; enabled>
+     Active: active (running) since Wed 2024-08-28 15:14:54 MSK; 1h 2>
+       Docs: man:mariadbd(8)
+             https://mariadb.com/kb/en/library/systemd/
+    Process: 112881 ExecStartPre=/usr/libexec/mariadb-check-socket (c>
+    Process: 112905 ExecStartPre=/usr/libexec/mariadb-prepare-db-dir >
+    Process: 113887 ExecStartPost=/usr/libexec/mariadb-check-upgrade >
+   Main PID: 113002 (mariadbd)
+     Status: "Taking your SQL requests now..."
+
+........................................
+check db and binlog!!!
+
+-rw-rw----.  1 mysql mysql    252037 авг 28 15:14 mysql-bin.002949
+-rw-rw----.  1 mysql mysql       401 авг 28 15:14 mysql-bin.002950
+-rw-rw----.  1 mysql mysql    218726 авг 28 15:16 mysql-bin.002951
+-rw-rw----.  1 mysql mysql       401 авг 28 15:16 mysql-bin.002952
+-rw-rw----.  1 mysql mysql   5545541 авг 28 16:00 mysql-bin.002953
+-rw-rw----.  1 mysql mysql     42541 авг 28 15:16 mysql-bin.index
+srwxrwxrwx.  1 mysql mysql         0 авг 28 15:16 mysql.sock
+-rw-rw----.  1 mysql mysql        16 авг 28 15:16 mysql_upgrade_info
+drwxr-xr-x.  2 mysql mysql     16384 авг 28 15:16 neutron
+drwxr-xr-x.  2 mysql mysql     12288 авг 28 15:16 nova
+drwxr-xr-x.  2 mysql mysql      4096 авг 28 15:16 nova_api
+drwxr-xr-x.  2 mysql mysql     12288 авг 28 15:16 nova_cell0
+drwxr-xr-x.  2 mysql mysql      4096 авг 28 15:16 octavia
+drwxr-xr-x.  2 mysql mysql        20 авг 28 15:16 performance_schema
+drwxr-xr-x.  2 mysql mysql      4096 авг 28 15:16 placement
+drwxr-xr-x.  2 mysql mysql      4096 авг 28 15:16 zun
+..........................................
+# check db
+mysql -u root
+show databases;
+..........................................
++--------------------+
+| Database           |
++--------------------+
+| cinder             |
+| dash               |
+| glance             |
+| grafana            |
+| heat               |
+| information_schema |
+| keystone           |
+| masakari           |
+| mysql              |
+| neutron            |
+| nova               |
+| nova_api           |
+| nova_cell0         |
+| octavia            |
+| performance_schema |
+| placement          |
+| zun                |
++--------------------+
+..........................................
+#check cluster
+SHOW GLOBAL STATUS WHERE Variable_name IN ('wsrep_ready', 'wsrep_cluster_size', 'wsrep_cluster_status', 'wsrep_connected', 'wsrep_incoming_addresses','wsrep_flow_control_paused');
+
++--------------------------+---------------------+
+| Variable_name            | Value               |
++--------------------------+---------------------+
+| wsrep_incoming_addresses | AUTO,AUTO,AUTO,AUTO |
+| wsrep_cluster_size       | 4                   |
+| wsrep_cluster_status     | Primary             |
+| wsrep_connected          | ON                  |
+| wsrep_ready              | ON                  |
++--------------------------+---------------------+
+
+---------------------------------------------
+
+error if binlog not copy (do not forget install tar!)
+check open port all nodes (telnet,nmap)
+06 is the default port for MySQL client connections and State Snapshot Transfer using mysqldump for backups.
+4567 is reserved for Galera Cluster Replication traffic. Multicast replication uses both TCP and UDP transport on this port.
+4568 is the port for Incremental State Transfer.
+4444 is used for all other State Snapshot Transfer.
+
+---------------------------------------------
+tuorial (add rules galera)(iptables,irewalld
+
+https://galeracluster.com/library/documentation/firewall-settings.html
+#################work script########################
+#!/bin/bash
+ip_string="10.0.0.2 10.0.0.3 10.0.0.4 10.0.0.5 10.0.0.6"
+hosts=0
+count=0
+
+for i in $ip_string
+do
+    count=$((count+1))
+    ping -c 1 -w 1 $i 1>/dev/null 2>/dev/null
+    result=$?
+
+    if [ $result -eq 0 ]
+    then
+        hosts=$((hosts+1))
+    fi
+done
+
+if [ $hosts -le $(($count/2)) ] 
+then 
+   exit 1
+fi
+exit 0	
+#####################################################
