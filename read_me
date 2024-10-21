@@ -131,6 +131,20 @@ check open port all nodes (telnet,nmap)
 4568 is the port for Incremental State Transfer.
 4444 is used for all other State Snapshot Transfer.
 
+-------------------------------------------
+new cluster 
+/var/lib/mysql/grastate.dat
+change bootstrap 
+
+my_uuid: ed664aee-6a9a-11ef-9088-b633a724f573
+#vwbeg
+view_id: 3 745f3b9f-8ca6-11ef-aecb-8fc09a9f1894 50
+bootstrap: 1                                             # 0 > 1
+
+
+
+
+
 ---------------------------------------------
 tuorial (add rules galera)(iptables,irewalld
 
