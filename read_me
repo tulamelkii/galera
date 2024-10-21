@@ -140,22 +140,112 @@ https://galeracluster.com/library/documentation/firewall-settings.html
 ip_string="10.0.0.2 10.0.0.3 10.0.0.4 10.0.0.5 10.0.0.6"
 hosts=0
 count=0
+arbitr=10.0.0.6
 
 for i in $ip_string
 do
     count=$((count+1))
-    ping -c 1 -w 1 $i 1>/dev/null 2>/dev/null
+    ping -c 1 -w 1 $i &>/dev/null && mysql -h $i -u mysql -P 3306 -e "exit" &>/dev/null
     result=$?
-
+    echo $result
     if [ $result -eq 0 ]
     then
         hosts=$((hosts+1))
     fi
 done
 
-if [ $hosts -le $(($count/2)) ] 
-then 
-   exit 1
+if [ $hosts -le $(($count/2)) ]
+then
+if ping -c 1 -w 1 $arbitr &>/dev/null && mysql -h $arbitr -u mysql -P 3306 -e "exit" &>/dev/null; then
+     result1=$?
+echo $result1
+if [ $result1 -eq 1 ]
+   then
+     exit 1
 fi
-exit 0	
-#####################################################
+fi
+fi
+exit 0
+
+#####################WRRP######################################################
+global_defs {
+    enable_script_security
+}
+
+vrrp_script check_nodes {
+   script "/etc/keepalived/2.sh"
+   interval 2
+   user root
+}
+
+vrrp_instance cluster {
+state MASTER
+interface ens22f0
+virtual_router_id 10
+priority 130
+advert_int 2
+authentication {
+auth_type AH
+auth_pass 1111
+}
+unicast_src_ip 10.0.0.2
+unicast_peer {
+10.0.0.3
+10.0.0.4
+10.0.0.5
+10.0.0.6
+}
+virtual_ipaddress {
+    10.0.0.1 dev ens22f0 label ens22f0:ip
+}
+track_script {
+        check_nodes
+    }
+}
+###############sql##########################################################
+
+[mysqld]
+datadir=/var/lib/mysql
+socket=/var/lib/mysql/mysql.sock
+log-error=/var/log/mariadb/mariadb.log
+pid-file=/run/mariadb/mariadb.pid
+user=mysql
+
+server-id=1
+bind-address=0.0.0.0
+innodb_data_home_dir=/var/lib/mysql
+innodb_data_file_path=ibdata1:100M:autoextend
+innodb_log_group_home_dir=/var/lib/mysql
+innodb_buffer_pool_size=2G
+innodb_log_file_size=100M
+innodb_log_buffer_size=8M
+innodb_flush_log_at_trx_commit=1
+innodb_lock_wait_timeout=50
+
+max_connections=16384
+max_statement_time=20
+
+
+
+port=3306
+
+default-time-zone='+03:00'
+default-storage-engine=InnoDB
+innodb_file_per_table=on
+binlog_format=ROW
+innodb_autoinc_lock_mode=2
+log-bin=mysql-bin
+expire_logs_days=30
+max_binlog_size=100M
+
+[galera]
+wsrep_on=ON
+wsrep_provider=/usr/lib64/galera/libgalera_smm.so
+wsrep_cluster_address="gcomm://10.0.0.2,10.0.0.3,10.0.0.4,10.0.0.5,10.0.0.6"
+wsrep_cluster_name="hell"
+wsrep_node_address="10.0.0.2"
+wsrep_node_name="helius1"
+wsrep_sst_method=rsync
+wsrep_provider_options="gcache.size=2G"
+
+
