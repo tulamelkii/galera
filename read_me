@@ -27,6 +27,8 @@ chown -R mysql. /etc/my.cnf.d/
 chown -R mysql. /usr/lib64/galera-4/( if galera chown -R mysql. /usr/lib64/galera/)
 ###create user and add grand to privilege new nod
 mysql -u root
+##########################################################!!!!
+mysql_install_db --user=mysql --default-storage-engine=InnoDB
 #############################################
 CREATE USER 'replica'@'<nodename>' identified by 'pass*repl'; ##?
 GRANT REPLICATION SLAVE ON *.* TO 'replica'@'10.0.0.1' IDENTIFIED BY '%r';  ##?
